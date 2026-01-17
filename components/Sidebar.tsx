@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
-import { Plus, MessageSquare, Trash2, X, Settings, HelpCircle, History } from 'lucide-react';
+import { Plus, MessageSquare, Trash2, X, History } from 'lucide-react';
 import { ChatSession } from '../types';
-import { isToday, isYesterday, isThisWeek, isThisMonth, parseISO } from 'date-fns';
+import { isToday, isYesterday, isThisWeek } from 'date-fns';
 import { cn } from '../lib/utils';
 
 interface SidebarProps {
@@ -11,7 +11,7 @@ interface SidebarProps {
   currentChatId: string | null;
   onSelectChat: (id: string) => void;
   onNewChat: () => void;
-  onDeleteChat: (id: string, e: React.MouseEvent) => void;
+  onDeleteChat: (id: string) => void;
   onClearAll: () => void;
 }
 
@@ -112,8 +112,11 @@ const Sidebar: React.FC<SidebarProps> = ({
                     </span>
                     
                     <button 
-                      onClick={(e) => onDeleteChat(chat.id, e)}
-                      className="absolute right-2 p-1.5 text-gray-400 opacity-0 group-hover:opacity-100 hover:text-red-400 hover:bg-white/10 rounded-full transition-all"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDeleteChat(chat.id);
+                      }}
+                      className="absolute right-2 p-1.5 text-gray-400 opacity-100 md:opacity-0 md:group-hover:opacity-100 hover:text-red-400 hover:bg-white/10 rounded-full transition-all"
                       title="Delete chat"
                     >
                       <Trash2 size={14} />
@@ -135,26 +138,14 @@ const Sidebar: React.FC<SidebarProps> = ({
         <div className="p-2 flex-none border-t border-gemini-accent/20">
           {chats.length > 0 && (
             <button 
-              onClick={() => {
-                if (window.confirm("Are you sure you want to delete all chat history? This cannot be undone.")) {
-                  onClearAll();
-                }
-              }}
-              className="w-full flex items-center gap-3 px-4 py-2.5 text-gray-400 hover:bg-gray-800 rounded-lg transition-colors text-sm"
+              onClick={onClearAll}
+              className="w-full flex items-center gap-3 px-4 py-2.5 text-gray-400 hover:bg-gray-800 rounded-lg transition-colors text-sm group"
             >
-              <Trash2 size={18} />
-              <span>Clear all conversations</span>
+              <Trash2 size={18} className="group-hover:text-red-400 transition-colors" />
+              <span className="group-hover:text-gray-200 transition-colors">Clear all conversations</span>
             </button>
           )}
-          <button className="w-full flex items-center gap-3 px-4 py-2.5 text-gray-400 hover:bg-gray-800 rounded-lg transition-colors text-sm">
-            <HelpCircle size={18} />
-            <span>Help</span>
-          </button>
-          <button className="w-full flex items-center gap-3 px-4 py-2.5 text-gray-400 hover:bg-gray-800 rounded-lg transition-colors text-sm">
-            <Settings size={18} />
-            <span>Settings</span>
-          </button>
-          <div className="px-4 py-2 text-[10px] text-gray-600 flex items-center gap-1">
+          <div className="px-4 py-2 text-[10px] text-gray-600 flex items-center gap-1 mt-2">
              <div className="w-1.5 h-1.5 rounded-full bg-green-500"></div>
              Clone Location: Client-side
           </div>

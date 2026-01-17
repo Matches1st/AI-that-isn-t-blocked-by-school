@@ -1,11 +1,12 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { ChatMessage, ChatSession, GroundingChunk } from '../types';
 import { sendMessageStream, resetChat } from '../lib/gemini';
-import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
-import { getChats, saveChats, createNewChat, updateChat, deleteChatById } from '../lib/storage';
+import { GenerateContentResponse } from "@google/genai";
+import { getChats, saveChats, createNewChat, deleteChatById } from '../lib/storage';
 import MessageBubble from './MessageBubble';
 import InputArea from './InputArea';
 import Sidebar from './Sidebar';
+import ConfirmModal from './ConfirmModal';
 import { Sparkles, Menu } from 'lucide-react';
 
 const ChatInterface: React.FC = () => {
@@ -14,6 +15,20 @@ const ChatInterface: React.FC = () => {
   const [currentChatId, setCurrentChatId] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true); // Default open on desktop
   
+  // Modal State
+  const [modalConfig, setModalConfig] = useState<{
+    isOpen: boolean;
+    type: 'delete-one' | 'clear-all';
+    chatId?: string;
+    title: string;
+    message: string;
+  }>({
+    isOpen: false,
+    type: 'delete-one',
+    title: '',
+    message: ''
+  });
+
   // Derived state: Current messages
   const currentChat = chats.find(c => c.id === currentChatId);
   const messages = currentChat?.messages || [];
@@ -85,28 +100,52 @@ const ChatInterface: React.FC = () => {
     }
   };
 
-  const handleDeleteChat = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (window.confirm("Delete this chat?")) {
-      const updatedChats = deleteChatById(chats, id);
-      setChats(updatedChats);
-      saveChats(updatedChats);
+  const openDeleteModal = (id: string) => {
+    setModalConfig({
+      isOpen: true,
+      type: 'delete-one',
+      chatId: id,
+      title: 'Delete chat?',
+      message: 'You\'ll no longer be able to see this chat. This cannot be undone.'
+    });
+  };
+
+  const openClearAllModal = () => {
+    setModalConfig({
+      isOpen: true,
+      type: 'clear-all',
+      title: 'Clear all conversations?',
+      message: 'This will delete all your chat history. This action cannot be undone.'
+    });
+  };
+
+  const handleConfirmDelete = () => {
+    if (modalConfig.type === 'delete-one' && modalConfig.chatId) {
+      const idToDelete = modalConfig.chatId;
+      const updatedChats = deleteChatById(chats, idToDelete);
       
-      if (currentChatId === id) {
-        // If we deleted the active chat, switch to another or create new
+      setChats(updatedChats);
+      saveChats(updatedChats); // Explicitly save to ensure persistence
+      
+      // If we deleted the active chat
+      if (currentChatId === idToDelete) {
         if (updatedChats.length > 0) {
-          setCurrentChatId(updatedChats[0].id);
+          // Switch to most recent remaining chat
+          const mostRecent = updatedChats.sort((a, b) => b.updatedAt - a.updatedAt)[0];
+          setCurrentChatId(mostRecent.id);
+          resetChat();
         } else {
+          // No chats left, create new
           handleNewChat();
         }
       }
+    } else if (modalConfig.type === 'clear-all') {
+      setChats([]);
+      saveChats([]);
+      handleNewChat();
     }
-  };
-
-  const handleClearAll = () => {
-    setChats([]);
-    saveChats([]);
-    handleNewChat();
+    
+    setModalConfig(prev => ({ ...prev, isOpen: false }));
   };
 
   const handleSend = async (text: string, images: string[]) => {
@@ -166,13 +205,6 @@ const ChatInterface: React.FC = () => {
     });
 
     try {
-      // We pass the *current* history (before the user message we just added visually, 
-      // or including it? The SDK usually wants previous history + new prompt.
-      // sendMessageStream takes the new message. The history should be previous messages.
-      // My `sendMessageStream` wrapper handles initialization using history.
-      // We need to pass the history *excluding* the streaming placeholder and the *new* user message 
-      // because `sendMessageStream` sends the new message as the 'prompt'.
-      
       const chatHistory = currentChat?.messages || []; 
       
       const result = await sendMessageStream(currentChatId, chatHistory, text, images);
@@ -229,7 +261,7 @@ const ChatInterface: React.FC = () => {
          };
          const newChats = [...prev];
          newChats[chatIndex] = updatedChat;
-         saveChats(newChats); // Ensure save on completion
+         saveChats(newChats); 
          return newChats;
       });
 
@@ -256,6 +288,15 @@ const ChatInterface: React.FC = () => {
   return (
     <div className="flex h-screen bg-gemini-dark text-gemini-text overflow-hidden">
       
+      {/* Modal */}
+      <ConfirmModal 
+        isOpen={modalConfig.isOpen}
+        onClose={() => setModalConfig(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={handleConfirmDelete}
+        title={modalConfig.title}
+        message={modalConfig.message}
+      />
+
       {/* Sidebar */}
       <Sidebar 
         isOpen={isSidebarOpen} 
@@ -264,8 +305,8 @@ const ChatInterface: React.FC = () => {
         currentChatId={currentChatId}
         onSelectChat={handleSelectChat}
         onNewChat={handleNewChat}
-        onDeleteChat={handleDeleteChat}
-        onClearAll={handleClearAll}
+        onDeleteChat={openDeleteModal}
+        onClearAll={openClearAllModal}
       />
 
       {/* Main Chat Area */}
