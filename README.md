@@ -1,15 +1,20 @@
 # Gemini Web Clone
 
-A highly accurate, client-side clone of the Google Gemini web interface, built with React, Vite, and the official Google GenAI SDK.
+A highly accurate, client-side clone of the Google Gemini web interface, built with React, Vite, and the official Google GenAI SDK (@google/genai).
 
 ## Features
 
 *   **Authentic UI:** Dark mode, clean typography, and message layout mimicking the real Gemini app.
 *   **Chat History:** Full chat history persistence using local storage with a collapsible sidebar.
-*   **Multimodal Support:** Upload multiple images and chat about them.
+*   **Multimodal Support:** Upload multiple images via button or paste (clipboard) and chat about them.
 *   **Real-time Streaming:** See responses character-by-character as they are generated.
 *   **Search Grounding:** Uses Google Search to provide up-to-date information with source citations.
 *   **Client-Side Privacy:** Your API key and chat history are stored only in your browser's local storage.
+
+## Updates
+
+*   Updated to use `@google/genai` (v1.37.0+) SDK.
+*   Fixed deployment issues related to SDK version resolution.
 
 ## Setup Instructions
 

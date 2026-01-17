@@ -1,29 +1,31 @@
-import { GoogleGenAI, Chat, Content } from "@google/genai";
+import { GoogleGenAI, type Chat, type Content, type Part } from "@google/genai";
 import { GEMINI_MODEL, SYSTEM_INSTRUCTION } from './constants';
 import { ChatMessage } from '../types';
 
-let geminiClient: GoogleGenAI | null = null;
-let currentChat: Chat | null = null;
-let currentChatId: string | null = null;
+let client: GoogleGenAI | null = null;
+let chatSession: Chat | null = null;
+let activeChatId: string | null = null;
 
 export const initializeGemini = (apiKey: string) => {
-  geminiClient = new GoogleGenAI({ apiKey });
+  client = new GoogleGenAI({ apiKey });
 };
 
 // Convert app messages to SDK Content format
-const convertToHistory = (messages: ChatMessage[]): Content[] => {
+const formatHistory = (messages: ChatMessage[]): Content[] => {
   // Filter out streaming or empty messages that shouldn't be in history
   return messages
     .filter(msg => !msg.isStreaming && msg.text.trim() !== '')
     .map(msg => {
-      const parts: any[] = [];
+      const parts: Part[] = [];
       
       if (msg.images && msg.images.length > 0) {
         msg.images.forEach(img => {
+          // Remove data URL prefix if present for the SDK
+          const base64Data = img.includes('base64,') ? img.split('base64,')[1] : img;
           parts.push({
             inlineData: {
               mimeType: 'image/jpeg',
-              data: img.split(',')[1]
+              data: base64Data
             }
           });
         });
@@ -41,11 +43,11 @@ const convertToHistory = (messages: ChatMessage[]): Content[] => {
 };
 
 export const createChatSession = (chatId: string, previousMessages: ChatMessage[] = []) => {
-  if (!geminiClient) throw new Error("Gemini client not initialized");
+  if (!client) throw new Error("Gemini client not initialized");
   
-  const history = convertToHistory(previousMessages);
+  const history = formatHistory(previousMessages);
 
-  currentChat = geminiClient.chats.create({
+  chatSession = client.chats.create({
     model: GEMINI_MODEL,
     history: history,
     config: {
@@ -54,13 +56,13 @@ export const createChatSession = (chatId: string, previousMessages: ChatMessage[
     },
   });
   
-  currentChatId = chatId;
-  return currentChat;
+  activeChatId = chatId;
+  return chatSession;
 };
 
 export const resetChat = () => {
-  currentChat = null;
-  currentChatId = null;
+  chatSession = null;
+  activeChatId = null;
 };
 
 export const sendMessageStream = async (
@@ -70,29 +72,37 @@ export const sendMessageStream = async (
   images: string[] = []
 ) => {
   // If we switched chats or don't have a session, recreate it with the correct history
-  if (!currentChat || currentChatId !== chatId) {
+  // The SDK maintains state, but since we rely on localStorage as the source of truth
+  // and might reload/switch, we ensure the session matches the current context.
+  if (!client) throw new Error("Gemini client not initialized");
+
+  if (!chatSession || activeChatId !== chatId) {
     createChatSession(chatId, historyMessages);
   }
 
-  if (!currentChat) throw new Error("Failed to create chat session");
+  if (!chatSession) throw new Error("Failed to create chat session");
 
-  let messageInput: any;
-
+  // Construct message parts
+  const parts: Part[] = [];
+  
   if (images.length > 0) {
-    messageInput = {
-      parts: [
-        ...images.map(img => ({
-          inlineData: {
-            mimeType: 'image/jpeg', // Assuming jpeg for simplicity
-            data: img.split(',')[1]
-          }
-        })),
-        { text }
-      ]
-    };
-  } else {
-    messageInput = text;
+    images.forEach(img => {
+      const base64Data = img.includes('base64,') ? img.split('base64,')[1] : img;
+      parts.push({
+        inlineData: {
+          mimeType: 'image/jpeg',
+          data: base64Data
+        }
+      });
+    });
   }
 
-  return await currentChat.sendMessageStream({ message: messageInput });
+  if (text) {
+    parts.push({ text });
+  }
+
+  // Use the new SDK's sendMessageStream with the message object
+  return await chatSession.sendMessageStream({ 
+    message: parts
+  });
 };

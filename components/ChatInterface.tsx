@@ -217,15 +217,16 @@ const ChatInterface: React.FC = () => {
       let groundingSources: GroundingChunk[] = [];
 
       for await (const chunk of result) {
-        const c = chunk as GenerateContentResponse;
+        // In @google/genai, chunk.text is a getter property, not a method
+        const chunkText = chunk.text; 
         
-        const chunkText = c.text;
         if (chunkText) {
           fullText += chunkText;
         }
 
-        if (c.candidates?.[0]?.groundingMetadata?.groundingChunks) {
-          const chunks = c.candidates[0].groundingMetadata.groundingChunks as unknown as GroundingChunk[];
+        // Check for grounding metadata in the candidates
+        if (chunk.candidates?.[0]?.groundingMetadata?.groundingChunks) {
+          const chunks = chunk.candidates[0].groundingMetadata.groundingChunks as unknown as GroundingChunk[];
           if (chunks) {
             groundingSources = [...groundingSources, ...chunks];
           }
@@ -333,7 +334,7 @@ const ChatInterface: React.FC = () => {
              </button>
              <div className="flex items-center gap-2" >
                 <span className="text-xl font-semibold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">Gemini</span>
-                <span className="text-xs text-gray-400 border border-gray-600 px-2 py-0.5 rounded hidden sm:inline-block">1.5 Pro</span>
+                <span className="text-xs text-gray-400 border border-gray-600 px-2 py-0.5 rounded hidden sm:inline-block">3.0 Pro</span>
              </div>
           </div>
           <div className="hidden sm:block">

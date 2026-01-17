@@ -35,8 +35,6 @@ const InputArea: React.FC<InputAreaProps> = ({ onSend, isLoading }) => {
     
     for (let i = 0; i < items.length; i++) {
       if (items[i].type.indexOf('image') !== -1) {
-        // Prevent default behavior only if we are pasting ONLY images to avoid duplicate pasting issues if browser handles it weirdly,
-        // but typically we just want to intercept the file.
         const blob = items[i].getAsFile();
         if (blob) {
           const reader = new FileReader();
