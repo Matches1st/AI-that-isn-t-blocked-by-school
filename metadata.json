@@ -1,0 +1,5 @@
+{
+  "name": "Gemini Web Clone",
+  "description": "A fully functional, client-side clone of the Google Gemini web interface with multimodal support and Google Search grounding.",
+  "requestFramePermissions": []
+}
