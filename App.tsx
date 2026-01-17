@@ -22,6 +22,11 @@ function App() {
     initializeGemini(key);
   };
 
+  const handleChangeKey = () => {
+    localStorage.removeItem('gemini_api_key');
+    setApiKey(null);
+  };
+
   if (isLoading) {
     return <div className="min-h-screen bg-[#131314]"></div>;
   }
@@ -29,7 +34,7 @@ function App() {
   return (
     <div className="min-h-screen bg-[#131314]">
       {apiKey ? (
-        <ChatInterface />
+        <ChatInterface onChangeKey={handleChangeKey} />
       ) : (
         <LandingPage onSaveKey={handleSaveKey} />
       )}

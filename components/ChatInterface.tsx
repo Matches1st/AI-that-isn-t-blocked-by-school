@@ -10,7 +10,11 @@ import ConfirmModal from './ConfirmModal';
 import ImageModal from './ImageModal';
 import { Sparkles, Menu } from 'lucide-react';
 
-const ChatInterface: React.FC = () => {
+interface ChatInterfaceProps {
+  onChangeKey: () => void;
+}
+
+const ChatInterface: React.FC<ChatInterfaceProps> = ({ onChangeKey }) => {
   // State for Chats
   const [chats, setChats] = useState<ChatSession[]>([]);
   const [currentChatId, setCurrentChatId] = useState<string | null>(null);
@@ -333,6 +337,7 @@ const ChatInterface: React.FC = () => {
         onNewChat={handleNewChat}
         onDeleteChat={openDeleteModal}
         onClearAll={openClearAllModal}
+        onChangeKey={onChangeKey}
       />
 
       {/* Main Chat Area */}

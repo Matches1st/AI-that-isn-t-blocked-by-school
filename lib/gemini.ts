@@ -8,6 +8,9 @@ let activeChatId: string | null = null;
 
 export const initializeGemini = (apiKey: string) => {
   client = new GoogleGenAI({ apiKey });
+  // Always reset the session when initializing a new client/key
+  // to ensure subsequent requests use the new credential.
+  resetChat();
 };
 
 export const testApiKey = async (apiKey: string): Promise<boolean> => {

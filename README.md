@@ -9,7 +9,7 @@ A highly accurate, client-side clone of the Google Gemini web interface, built w
 *   **Multimodal Support:** Upload multiple images via button or paste (clipboard) and chat about them.
 *   **Real-time Streaming:** See responses character-by-character as they are generated.
 *   **Search Grounding:** Uses Google Search to provide up-to-date information with source citations.
-*   **Client-Side Privacy:** Your API key and chat history are stored only in your browser's local storage.
+*   **API Key Management:** Secure client-side storage, validation testing, and easy switching of API keys.
 
 ## Setup Instructions
 
@@ -39,7 +39,7 @@ When deploying to services like **Netlify** or **Vercel**, your API calls will f
 4.  **Option B (Secure):** Set "Client restriction" to **Websites** and add your specific Netlify domain (e.g., `https://your-app.netlify.app/*`) AND `http://localhost:*` (for development).
 
 ### Troubleshooting
-*   **"I'm sorry, something went wrong":** This usually means your API Key is restricted. Use the "Test Key" button on the login screen to verify. Check the browser console (F12) for the exact error message (e.g., 403 Forbidden).
+*   **"I'm sorry, something went wrong":** This usually means your API Key is restricted. Use the "Change API Key" button in the sidebar to try a different key or use the "Test Key" feature.
 *   **429 Error:** You have exceeded the free tier rate limits (RPM/TPM). Wait a minute and try again.
 *   **Model not found:** The app defaults to `gemini-1.5-flash` which is widely available. If you changed the code to use a restricted model, revert it.
 

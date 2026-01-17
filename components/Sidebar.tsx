@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Plus, MessageSquare, Trash2, X, History } from 'lucide-react';
+import { Plus, MessageSquare, Trash2, X, History, Key } from 'lucide-react';
 import { ChatSession } from '../types';
 import { isToday, isYesterday, isThisWeek } from 'date-fns';
 import { cn } from '../lib/utils';
@@ -13,6 +13,7 @@ interface SidebarProps {
   onNewChat: () => void;
   onDeleteChat: (id: string) => void;
   onClearAll: () => void;
+  onChangeKey: () => void;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
@@ -23,7 +24,8 @@ const Sidebar: React.FC<SidebarProps> = ({
   onSelectChat,
   onNewChat,
   onDeleteChat,
-  onClearAll
+  onClearAll,
+  onChangeKey
 }) => {
   // Group chats by date
   const groupedChats = useMemo(() => {
@@ -136,6 +138,18 @@ const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         <div className="p-2 flex-none border-t border-gemini-accent/20">
+          <button 
+            onClick={() => {
+              if(window.confirm("Change API Key? Your chat history will be preserved.")) {
+                onChangeKey();
+              }
+            }}
+            className="w-full flex items-center gap-3 px-4 py-2.5 text-gray-400 hover:bg-gray-800 rounded-lg transition-colors text-sm group mb-1"
+          >
+            <Key size={18} className="group-hover:text-white transition-colors" />
+            <span className="group-hover:text-gray-200 transition-colors">Change API Key</span>
+          </button>
+
           {chats.length > 0 && (
             <button 
               onClick={onClearAll}
