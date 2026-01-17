@@ -217,14 +217,12 @@ const ChatInterface: React.FC = () => {
       let groundingSources: GroundingChunk[] = [];
 
       for await (const chunk of result) {
-        // In @google/genai, chunk.text is a getter property, not a method
         const chunkText = chunk.text; 
         
         if (chunkText) {
           fullText += chunkText;
         }
 
-        // Check for grounding metadata in the candidates
         if (chunk.candidates?.[0]?.groundingMetadata?.groundingChunks) {
           const chunks = chunk.candidates[0].groundingMetadata.groundingChunks as unknown as GroundingChunk[];
           if (chunks) {
@@ -270,15 +268,31 @@ const ChatInterface: React.FC = () => {
          return newChats;
       });
 
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error generating content:", error);
+      
+      let errorMessage = "I'm sorry, something went wrong. Please check your network connection.";
+      const errString = error.message || error.toString();
+
+      if (errString.includes("403")) {
+        errorMessage = "Access Denied. If you are using a key from Google AI Studio, please ensure it has NO HTTP referrer restrictions (or allows *.netlify.app).";
+      } else if (errString.includes("401") || errString.includes("API key not valid")) {
+        errorMessage = "Invalid API Key. Please update your key.";
+      } else if (errString.includes("429")) {
+        errorMessage = "Too many requests. You have hit the rate limit for this API key. Please try again later.";
+      } else if (errString.includes("404") || errString.includes("not found")) {
+        errorMessage = "The requested model is not available for this API key. Please check your project settings.";
+      } else if (errString.includes("fetch failed")) {
+        errorMessage = "Network error. Please check your internet connection and try again.";
+      }
+
       setChats(prev => {
         const chatIndex = prev.findIndex(c => c.id === currentChatId);
         if (chatIndex === -1) return prev;
 
         const updatedMessages = prev[chatIndex].messages.map(msg => 
           msg.id === botMessageId 
-            ? { ...msg, text: "I'm sorry, something went wrong. Please check your API key or try again later.", isStreaming: false } 
+            ? { ...msg, text: errorMessage, isStreaming: false } 
             : msg
         );
         const newChats = [...prev];
@@ -334,7 +348,7 @@ const ChatInterface: React.FC = () => {
              </button>
              <div className="flex items-center gap-2" >
                 <span className="text-xl font-semibold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">Gemini</span>
-                <span className="text-xs text-gray-400 border border-gray-600 px-2 py-0.5 rounded hidden sm:inline-block">3.0 Pro</span>
+                <span className="text-xs text-gray-400 border border-gray-600 px-2 py-0.5 rounded hidden sm:inline-block">1.5 Flash</span>
              </div>
           </div>
           <div className="hidden sm:block">

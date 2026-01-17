@@ -10,6 +10,21 @@ export const initializeGemini = (apiKey: string) => {
   client = new GoogleGenAI({ apiKey });
 };
 
+export const testApiKey = async (apiKey: string): Promise<boolean> => {
+  try {
+    const tempClient = new GoogleGenAI({ apiKey });
+    // Try a simple generateContent call to verify the key works
+    await tempClient.models.generateContent({
+      model: GEMINI_MODEL,
+      contents: { parts: [{ text: 'Hello' }] }
+    });
+    return true;
+  } catch (error) {
+    console.error("API Key Test Failed:", error);
+    throw error;
+  }
+};
+
 // Convert app messages to SDK Content format
 const formatHistory = (messages: ChatMessage[]): Content[] => {
   // Filter out streaming or empty messages that shouldn't be in history
@@ -72,8 +87,6 @@ export const sendMessageStream = async (
   images: string[] = []
 ) => {
   // If we switched chats or don't have a session, recreate it with the correct history
-  // The SDK maintains state, but since we rely on localStorage as the source of truth
-  // and might reload/switch, we ensure the session matches the current context.
   if (!client) throw new Error("Gemini client not initialized");
 
   if (!chatSession || activeChatId !== chatId) {
@@ -101,8 +114,8 @@ export const sendMessageStream = async (
     parts.push({ text });
   }
 
-  // Use the new SDK's sendMessageStream with the message object
+  // Use the new SDK's sendMessageStream
   return await chatSession.sendMessageStream({ 
-    message: parts
+    message: parts 
   });
 };
