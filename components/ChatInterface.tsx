@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ChatMessage, ChatSession, GroundingChunk } from '../types';
+import { ChatMessage, ChatSession, GroundingChunk, MessageVersion } from '../types';
 import { sendMessageStream, resetChat } from '../lib/gemini';
 import { GenerateContentResponse } from "@google/genai";
 import { getChats, saveChats, createNewChat, deleteChatById } from '../lib/storage';
@@ -9,6 +9,7 @@ import Sidebar from './Sidebar';
 import ConfirmModal from './ConfirmModal';
 import ImageModal from './ImageModal';
 import { Sparkles, Menu, Info } from 'lucide-react';
+import { generateId } from '../lib/utils';
 
 interface ChatInterfaceProps {
   onChangeKey: () => void;
@@ -82,8 +83,9 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ onChangeKey }) => {
   };
 
   useEffect(() => {
+    // Only scroll if loading or if the last message is new
     scrollToBottom();
-  }, [messages, isLoading]);
+  }, [messages.length, isLoading]);
 
   // Handle saving whenever chats change
   useEffect(() => {
@@ -156,66 +158,9 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ onChangeKey }) => {
     setModalConfig(prev => ({ ...prev, isOpen: false }));
   };
 
-  const handleSend = async (text: string, images: string[]) => {
-    if (!currentChatId) return;
-
-    const userMessage: ChatMessage = {
-      id: Date.now().toString(),
-      role: 'user',
-      text,
-      images: images.length > 0 ? images : undefined,
-      timestamp: Date.now()
-    };
-
-    setIsLoading(true);
-
-    // Optimistic update for user message
-    setChats(prev => {
-      const chatIndex = prev.findIndex(c => c.id === currentChatId);
-      if (chatIndex === -1) return prev;
-
-      const updatedChat = {
-        ...prev[chatIndex],
-        messages: [...prev[chatIndex].messages, userMessage],
-        updatedAt: Date.now(),
-        // Generate title if it's the first message and title is default
-        title: prev[chatIndex].messages.length === 0 
-          ? (text.slice(0, 40) + (text.length > 40 ? '...' : '')) 
-          : prev[chatIndex].title
-      };
-      
-      const newChats = [...prev];
-      newChats[chatIndex] = updatedChat;
-      return newChats;
-    });
-
-    // Create placeholder for bot message
-    const botMessageId = (Date.now() + 1).toString();
-    const botMessagePlaceholder: ChatMessage = {
-      id: botMessageId,
-      role: 'model',
-      text: '',
-      isStreaming: true,
-      timestamp: Date.now()
-    };
-
-    setChats(prev => {
-      const chatIndex = prev.findIndex(c => c.id === currentChatId);
-      if (chatIndex === -1) return prev;
-      
-      const updatedChat = {
-        ...prev[chatIndex],
-        messages: [...prev[chatIndex].messages, botMessagePlaceholder]
-      };
-      const newChats = [...prev];
-      newChats[chatIndex] = updatedChat;
-      return newChats;
-    });
-
+  const processStream = async (chatId: string, history: ChatMessage[], prompt: string, images: string[], botMessageId: string) => {
     try {
-      const chatHistory = currentChat?.messages || []; 
-      
-      const result = await sendMessageStream(currentChatId, chatHistory, text, images);
+      const result = await sendMessageStream(chatId, history, prompt, images);
       
       let fullText = '';
       let groundingSources: GroundingChunk[] = [];
@@ -236,7 +181,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ onChangeKey }) => {
 
         // Update streaming message content
         setChats(prev => {
-          const chatIndex = prev.findIndex(c => c.id === currentChatId);
+          const chatIndex = prev.findIndex(c => c.id === chatId);
           if (chatIndex === -1) return prev;
 
           const updatedMessages = prev[chatIndex].messages.map(msg => 
@@ -252,9 +197,9 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ onChangeKey }) => {
         });
       }
 
-      // Finalize message (remove streaming flag)
+      // Finalize message
       setChats(prev => {
-         const chatIndex = prev.findIndex(c => c.id === currentChatId);
+         const chatIndex = prev.findIndex(c => c.id === chatId);
          if (chatIndex === -1) return prev;
 
          const updatedMessages = prev[chatIndex].messages.map(msg => 
@@ -291,7 +236,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ onChangeKey }) => {
       }
 
       setChats(prev => {
-        const chatIndex = prev.findIndex(c => c.id === currentChatId);
+        const chatIndex = prev.findIndex(c => c.id === chatId);
         if (chatIndex === -1) return prev;
 
         const updatedMessages = prev[chatIndex].messages.map(msg => 
@@ -306,6 +251,221 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ onChangeKey }) => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleSend = async (text: string, images: string[]) => {
+    if (!currentChatId) return;
+
+    // Initial Version setup for new message
+    const initialVersion: MessageVersion = {
+      id: generateId(),
+      text,
+      images,
+      timestamp: Date.now(),
+      subsequentMessages: []
+    };
+
+    const userMessage: ChatMessage = {
+      id: Date.now().toString(),
+      role: 'user',
+      text,
+      images: images.length > 0 ? images : undefined,
+      timestamp: Date.now(),
+      versions: [initialVersion],
+      currentVersionIndex: 0
+    };
+
+    setIsLoading(true);
+
+    // Optimistic update
+    setChats(prev => {
+      const chatIndex = prev.findIndex(c => c.id === currentChatId);
+      if (chatIndex === -1) return prev;
+
+      const updatedChat = {
+        ...prev[chatIndex],
+        messages: [...prev[chatIndex].messages, userMessage],
+        updatedAt: Date.now(),
+        title: prev[chatIndex].messages.length === 0 
+          ? (text.slice(0, 40) + (text.length > 40 ? '...' : '')) 
+          : prev[chatIndex].title
+      };
+      
+      const newChats = [...prev];
+      newChats[chatIndex] = updatedChat;
+      return newChats;
+    });
+
+    const botMessageId = (Date.now() + 1).toString();
+    const botMessagePlaceholder: ChatMessage = {
+      id: botMessageId,
+      role: 'model',
+      text: '',
+      isStreaming: true,
+      timestamp: Date.now()
+    };
+
+    setChats(prev => {
+      const chatIndex = prev.findIndex(c => c.id === currentChatId);
+      if (chatIndex === -1) return prev;
+      
+      const updatedChat = {
+        ...prev[chatIndex],
+        messages: [...prev[chatIndex].messages, botMessagePlaceholder]
+      };
+      const newChats = [...prev];
+      newChats[chatIndex] = updatedChat;
+      return newChats;
+    });
+
+    // We pass the current chat history excluding the placeholder
+    const chatHistory = currentChat ? [...currentChat.messages, userMessage] : [userMessage];
+    await processStream(currentChatId, chatHistory, text, images, botMessageId);
+  };
+
+  const handleEditMessage = async (messageId: string, newText: string, newImages: string[]) => {
+    if (!currentChatId || isLoading) return;
+
+    // 1. Find message index
+    const chatIndex = chats.findIndex(c => c.id === currentChatId);
+    if (chatIndex === -1) return;
+    
+    const currentMessages = chats[chatIndex].messages;
+    const msgIndex = currentMessages.findIndex(m => m.id === messageId);
+    if (msgIndex === -1) return;
+
+    const targetMessage = currentMessages[msgIndex];
+    if (targetMessage.role !== 'user') return;
+
+    setIsLoading(true);
+
+    // 2. Snapshot current state into the *current* version slot
+    // We save everything that happened AFTER this message in this version's history
+    const subsequentMessages = currentMessages.slice(msgIndex + 1);
+    
+    // 3. Create new version
+    const newVersion: MessageVersion = {
+      id: generateId(),
+      text: newText,
+      images: newImages,
+      timestamp: Date.now(),
+      subsequentMessages: [] // New timeline, no future yet
+    };
+
+    // GENERATE ID HERE (BEFORE setChats)
+    const botMessageId = generateId();
+
+    // 4. Update Chat State:
+    setChats(prev => {
+      const cIndex = prev.findIndex(c => c.id === currentChatId);
+      if (cIndex === -1) return prev;
+
+      const oldMessages = [...prev[cIndex].messages];
+      const msg = { ...oldMessages[msgIndex] };
+      
+      // Ensure versions array exists
+      const versions = msg.versions ? [...msg.versions] : [{
+        id: generateId(),
+        text: msg.text,
+        images: msg.images,
+        timestamp: msg.timestamp,
+        subsequentMessages: []
+      }];
+      
+      // Update the *previous* active version with its history snapshot
+      const currentVerIdx = msg.currentVersionIndex ?? 0;
+      if (versions[currentVerIdx]) {
+        versions[currentVerIdx] = {
+          ...versions[currentVerIdx],
+          subsequentMessages: subsequentMessages
+        };
+      }
+
+      // Add new version
+      versions.push(newVersion);
+      
+      // Update message display properties
+      msg.versions = versions;
+      msg.currentVersionIndex = versions.length - 1;
+      msg.text = newText;
+      msg.images = newImages.length > 0 ? newImages : undefined;
+
+      // Truncate list (keep messages up to this one)
+      const newMsgList = oldMessages.slice(0, msgIndex);
+      newMsgList.push(msg);
+
+      // Add Bot Placeholder
+      newMsgList.push({
+        id: botMessageId,
+        role: 'model',
+        text: '',
+        isStreaming: true,
+        timestamp: Date.now()
+      });
+
+      const updatedChat = { ...prev[cIndex], messages: newMsgList, updatedAt: Date.now() };
+      const newChats = [...prev];
+      newChats[cIndex] = updatedChat;
+      return newChats;
+    });
+
+    // 5. Trigger Generation
+    // History is everything up to the edited message
+    const historyForStream = currentMessages.slice(0, msgIndex);
+    await processStream(currentChatId, historyForStream, newText, newImages, botMessageId);
+  };
+
+  const handleVersionChange = (messageId: string, direction: -1 | 1) => {
+    if (!currentChatId || isLoading) return;
+
+    setChats(prev => {
+      const chatIndex = prev.findIndex(c => c.id === currentChatId);
+      if (chatIndex === -1) return prev;
+
+      const currentMessages = [...prev[chatIndex].messages];
+      const msgIndex = currentMessages.findIndex(m => m.id === messageId);
+      if (msgIndex === -1) return prev;
+
+      const msg = { ...currentMessages[msgIndex] };
+      if (!msg.versions) return prev;
+
+      const currentIndex = msg.currentVersionIndex ?? 0;
+      const newIndex = currentIndex + direction;
+
+      if (newIndex < 0 || newIndex >= msg.versions.length) return prev;
+
+      // 1. Snapshot current future into the *current* version
+      const currentFuture = currentMessages.slice(msgIndex + 1);
+      const updatedVersions = [...msg.versions];
+      
+      updatedVersions[currentIndex] = {
+        ...updatedVersions[currentIndex],
+        subsequentMessages: currentFuture
+      };
+
+      // 2. Load target version
+      const targetVersion = updatedVersions[newIndex];
+      
+      // 3. Restore message state
+      msg.text = targetVersion.text;
+      msg.images = targetVersion.images;
+      msg.currentVersionIndex = newIndex;
+      msg.versions = updatedVersions;
+
+      // 4. Restore future from target version
+      const newMsgList = currentMessages.slice(0, msgIndex);
+      newMsgList.push(msg);
+      
+      // Append the stored history of the target version
+      if (targetVersion.subsequentMessages) {
+        newMsgList.push(...targetVersion.subsequentMessages);
+      }
+
+      const updatedChat = { ...prev[chatIndex], messages: newMsgList };
+      const newChats = [...prev];
+      newChats[chatIndex] = updatedChat;
+      return newChats;
+    });
   };
 
   return (
@@ -388,6 +548,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ onChangeKey }) => {
                   key={msg.id} 
                   message={msg} 
                   onImageClick={(src) => setSelectedImage(src)}
+                  onEdit={!isLoading ? handleEditMessage : undefined}
+                  onVersionChange={!isLoading ? handleVersionChange : undefined}
                 />
               ))}
             </div>

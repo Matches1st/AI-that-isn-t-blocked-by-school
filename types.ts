@@ -5,6 +5,15 @@ export interface GroundingChunk {
   };
 }
 
+export interface MessageVersion {
+  id: string;
+  text: string;
+  images?: string[];
+  timestamp: number;
+  // Stores the conversation flow that followed this specific version
+  subsequentMessages: ChatMessage[]; 
+}
+
 export interface ChatMessage {
   id: string;
   role: 'user' | 'model';
@@ -13,6 +22,10 @@ export interface ChatMessage {
   isStreaming?: boolean;
   groundingSources?: GroundingChunk[];
   timestamp: number;
+  
+  // Versioning (Universes)
+  versions?: MessageVersion[];
+  currentVersionIndex?: number;
 }
 
 export interface ChatSession {
